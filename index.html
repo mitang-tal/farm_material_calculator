@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>农场材料计算器</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background: #f4f8fc;
+            font-family: '微软雅黑', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .navbar {
+            background: #4ea1ff;
+            color: #fff;
+            padding: 0 32px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .navbar .logo {
+            font-size: 22px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .navbar .nav-links a {
+            color: #fff;
+            text-decoration: none;
+            margin-left: 24px;
+            font-size: 16px;
+            transition: color 0.2s;
+        }
+        .navbar .nav-links a:hover {
+            color: #eaf6ff;
+        }
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin: 32px auto 0 auto;
+            padding: 24px 32px;
+            max-width: 900px;
+        }
+        .input-row {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        input[type="text"], input[type="number"] {
+            padding: 10px;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            font-size: 16px;
+            width: 200px;
+            background: #f8fafc;
+            transition: border 0.2s;
+        }
+        input[type="text"]:focus, input[type="number"]:focus {
+            border: 1.5px solid #4ea1ff;
+            outline: none;
+        }
+        .btn-primary {
+            background: #4ea1ff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-right: 8px;
+        }
+        .btn-primary:hover {
+            background: #357ec7;
+        }
+        .btn-secondary {
+            background: #444;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 24px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-secondary:hover {
+            background: #222;
+        }
+        .notice {
+            background: #eaf6ff;
+            color: #3178c6;
+            border-radius: 8px;
+            padding: 12px 24px;
+            margin: 24px auto 0 auto;
+            max-width: 900px;
+            font-size: 15px;
+        }
+        .result-card {
+            margin-top: 24px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 24px 32px;
+            max-width: 900px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .result-card ul {
+            padding-left: 24px;
+        }
+        .result-card b {
+            font-size: 18px;
+            color: #333;
+        }
+        /* 配方管理模态框美化 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.18);
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #fff;
+            margin: 60px auto;
+            padding: 32px 32px 24px 32px;
+            width: 90%;
+            max-width: 520px;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.13);
+            position: relative;
+        }
+        .close {
+            position: absolute;
+            right: 24px;
+            top: 18px;
+            font-size: 28px;
+            color: #aaa;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .close:hover { color: #4ea1ff; }
+        .recipe-list {
+            margin-top: 20px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+        .recipe-item {
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            background: #f8fafc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .recipe-item strong { color: #3178c6; }
+        .recipe-item button {
+            width: auto;
+            margin-left: 8px;
+            padding: 6px 14px;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            color: #3178c6;
+        }
+        .modal-content h4 {
+            margin-bottom: 8px;
+            margin-top: 18px;
+            color: #4ea1ff;
+        }
+        @media (max-width: 600px) {
+            .card, .result-card, .notice { padding: 12px 6px; }
+            .modal-content { padding: 12px 6px; }
+            .input-row { flex-direction: column; gap: 8px; }
+            input[type="text"], input[type="number"] { width: 100%; }
+        }
+        .autocomplete-list {
+            position: absolute;
+            background: #fff;
+            border: 1px solid #d0d7de;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            z-index: 2000;
+            max-height: 220px;
+            overflow-y: auto;
+            width: 200px;
+            margin-top: 2px;
+        }
+        .autocomplete-item {
+            padding: 8px 14px;
+            cursor: pointer;
+            font-size: 16px;
+            color: #333;
+        }
+        .autocomplete-item.active, .autocomplete-item:hover {
+            background: #eaf6ff;
+            color: #3178c6;
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <div class="navbar">
+        <div class="logo">农场材料计算器</div>
+        <div class="nav-links">
+            <a href="#" onclick="openImportExportModal();return false;">导入/导出配方</a>
+        </div>
+    </div>
+
+    <!-- 卡片式输入区 -->
+    <div class="card input-card" style="position:relative;">
+        <div class="input-row">
+            <div style="position:relative;">
+                <input type="text" id="item" placeholder="请输入配方名称" autocomplete="off">
+                <div id="autocomplete-list" class="autocomplete-list" style="display:none;"></div>
+            </div>
+            <input type="number" id="count" min="1" value="1" placeholder="数量">
+            <button class="btn-primary" onclick="calculate()">计算材料</button>
+            <button class="btn-secondary" onclick="openModal()">管理配方</button>
+        </div>
+    </div>
+
+    <!-- 公告栏 -->
+    <div class="notice">
+        <b>公告：</b>材料列表和配方支持自定义，界面持续优化中，欢迎反馈建议！
+    </div>
+
+    <!-- 结果展示区 -->
+    <div class="result-card" id="result"></div>
+
+    <!-- 导入/导出配方模态框 -->
+    <div id="importExportModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeImportExportModal()">&times;</span>
+            <h3>导入/导出配方</h3>
+            <div style="margin-bottom:12px;">
+                <button class="btn-primary" onclick="exportRecipes()">导出配方</button>
+                <label class="btn-secondary" style="margin-left:8px;cursor:pointer;">
+                    导入配方
+                    <input type="file" id="importFile" accept="application/json" style="display:none" onchange="importRecipes(event)">
+                </label>
+                <button class="btn-secondary" style="margin-left:8px;background:#e57373;" onclick="clearRecipes()">清空配方库</button>
+            </div>
+            <div style="color:#888;font-size:14px;">导出会下载当前配方库为JSON文件，导入会覆盖当前配方库。清空配方库会删除所有本地配方数据并刷新页面。</div>
+        </div>
+    </div>
+
+    <!-- 配方管理模态框 -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>配方管理</h3>
+            <div class="recipe-list" id="recipeList"></div>
+            <h4>添加新配方</h4>
+            <input type="text" id="newRecipeName" placeholder="配方名称">
+            <select id="newRecipeCategory" style="margin-bottom:12px;padding:8px 12px;border-radius:6px;border:1px solid #d0d7de;font-size:15px;">
+                <option value="原木制作">原木制作</option>
+                <option value="陶艺制作">陶艺制作</option>
+                <option value="缝纫制作">缝纫制作</option>
+                <option value="金属制作">金属制作</option>
+                <option value="皮革制作">皮革制作</option>
+                <option value="料理制作">料理制作</option>
+                <option value="其他">其他</option>
+            </select>
+            <div style="position:relative;margin-bottom:8px;">
+                <input type="text" id="materialSuggestInput" placeholder="输入材料名，支持联想补全" autocomplete="off" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid #d0d7de;font-size:15px;">
+                <div id="material-autocomplete-list" class="autocomplete-list" style="display:none;"></div>
+            </div>
+            <input type="text" id="newRecipeMaterials" placeholder="材料（格式：材料1：数量1，材料2：数量2）">
+            <button class="btn-primary" style="margin-top:8px;" onclick="addRecipe()">添加配方</button>
+        </div>
+    </div>
+
+<script>
+// 先从localStorage读取recipes
+let recipes = JSON.parse(localStorage.getItem('recipes')) || {
+    "面包": { "小麦": 3, "水": 1 },
+    "蛋糕": { "面粉": 2, "鸡蛋": 3, "牛奶": 1 },
+    "面粉": { "小麦": 2 },
+    "三明治": { "面包": 2, "鸡蛋": 1, "生菜": 1 },
+    // 基础材料：小麦、水、鸡蛋、牛奶、生菜
+};
+// 兼容旧数据，升级为新结构，并覆盖localStorage
+function upgradeRecipesStructure() {
+    let changed = false;
+    for (const [name, value] of Object.entries(recipes)) {
+        if (!value.materials) {
+            recipes[name] = { category: "其他", materials: value };
+            changed = true;
+        }
+    }
+    if (changed) localStorage.setItem('recipes', JSON.stringify(recipes));
+}
+upgradeRecipesStructure();
+
+// 递归分解，统计基础材料
+function getBaseMaterials(item, count, result) {
+    if (!recipes[item]) {
+        result[item] = (result[item] || 0) + count;
+        return;
+    }
+    const mats = recipes[item].materials;
+    if (typeof mats === 'object' && mats !== null) {
+        for (const [subItem, subCount] of Object.entries(mats)) {
+            if (typeof subCount === 'number' && !isNaN(subCount)) {
+                getBaseMaterials(subItem, subCount * count, result);
+            }
+        }
+    }
+}
+
+// 计算并显示结果
+function calculate() {
+    const item = document.getElementById('item').value.trim();
+    const count = parseInt(document.getElementById('count').value, 10);
+    if (!item || count < 1) {
+        document.getElementById('result').innerHTML = '<span style="color:#e57373">请输入正确的配方名称和数量！</span>';
+        return;
+    }
+    if (!recipes[item]) {
+        document.getElementById('result').innerHTML = `<span style="color:#e57373">未找到配方「${item}」，请检查名称或在配方管理中添加！</span>`;
+        return;
+    }
+    const result = {};
+    getBaseMaterials(item, count, result);
+    let html = `<b>合成 ${count} 个「${item}」所需基础材料：</b><ul>`;
+    for (const [mat, qty] of Object.entries(result)) {
+        html += `<li>${mat} × ${qty}</li>`;
+    }
+    html += '</ul>';
+    document.getElementById('result').innerHTML = html;
+}
+
+// 打开模态框
+function openModal() {
+    document.getElementById('modal').style.display = 'block';
+    displayRecipes();
+}
+
+// 关闭模态框
+function closeModal() {
+    document.getElementById('modal').style.display = 'none';
+}
+
+// 分类列表
+const CATEGORIES = ["原木制作", "陶艺制作", "缝纫制作", "金属制作", "皮革制作", "料理制作", "其他"];
+
+// 当前筛选分类
+let currentCategory = "全部";
+
+// 配方管理区分类筛选下拉
+function renderCategoryFilter() {
+    const filterDiv = document.createElement('div');
+    filterDiv.style.marginBottom = '12px';
+    const select = document.createElement('select');
+    select.style.padding = '6px 12px';
+    select.style.borderRadius = '6px';
+    select.style.border = '1px solid #d0d7de';
+    select.style.fontSize = '15px';
+    select.innerHTML = `<option value="全部">全部分类</option>` +
+        CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    select.value = currentCategory;
+    select.onchange = function() {
+        currentCategory = this.value;
+        displayRecipes();
+    };
+    filterDiv.appendChild(select);
+    return filterDiv;
+}
+
+// 显示所有配方（带分类筛选）
+function displayRecipes() {
+    const recipeList = document.getElementById('recipeList');
+    recipeList.innerHTML = '';
+    recipeList.appendChild(renderCategoryFilter());
+    for (const [name, value] of Object.entries(recipes)) {
+        const { category, materials } = value;
+        if (currentCategory !== "全部" && category !== currentCategory) continue;
+        let materialsHtml = '';
+        if (typeof materials === 'object' && materials !== null) {
+            materialsHtml = Object.entries(materials)
+                .filter(([mat, qty]) => typeof qty === 'number' && !isNaN(qty))
+                .map(([mat, qty]) => `${mat} × ${qty}`).join('，');
+        }
+        const div = document.createElement('div');
+        div.className = 'recipe-item';
+        div.innerHTML = `
+            <span><strong>${name}</strong> <span style='color:#888;font-size:13px;'>[${category}]</span>：${materialsHtml}</span>
+            <span>
+                <button class="btn-primary" onclick="editRecipe('${name}')">编辑</button>
+                <button class="btn-secondary" onclick="deleteRecipe('${name}')">删除</button>
+            </span>
+        `;
+        recipeList.appendChild(div);
+    }
+}
+
+// 分类下拉记忆功能
+const CATEGORY_KEY = 'last_selected_category';
+const categorySelect = document.getElementById('newRecipeCategory');
+if (categorySelect) {
+    // 页面加载时，优先读取localStorage
+    const lastCat = localStorage.getItem(CATEGORY_KEY);
+    if (lastCat && Array.from(categorySelect.options).some(opt => opt.value === lastCat)) {
+        categorySelect.value = lastCat;
+    }
+    // 选择分类时保存
+    categorySelect.addEventListener('change', function() {
+        localStorage.setItem(CATEGORY_KEY, this.value);
+    });
+}
+
+function addRecipe() {
+    const name = document.getElementById('newRecipeName').value.trim();
+    const materialsStr = document.getElementById('newRecipeMaterials').value.trim();
+    const category = document.getElementById('newRecipeCategory').value;
+    if (!name || !materialsStr) return;
+    const materials = {};
+    materialsStr.split('，').forEach(pair => {
+        const [mat, qty] = pair.split('：');
+        if(mat && qty) materials[mat.trim()] = parseInt(qty.trim(), 10);
+    });
+    recipes[name] = { category, materials };
+    localStorage.setItem('recipes', JSON.stringify(recipes));
+    displayRecipes();
+    document.getElementById('newRecipeName').value = '';
+    document.getElementById('newRecipeMaterials').value = '';
+    // 不重置分类，保持上次选择
+    // 自动刷新材料名联想建议
+    if (typeof materialInput !== 'undefined' && materialInput) {
+        materialInput.dispatchEvent(new Event('input'));
+    }
+}
+
+// 编辑配方
+function editRecipe(name) {
+    const { category, materials } = recipes[name];
+    const newName = prompt('新配方名称:', name);
+    if (!newName) return;
+    const newMaterialsStr = prompt('新配方材料（格式：材料1：数量1，材料2：数量2）:', Object.entries(materials).map(([mat, qty]) => `${mat}：${qty}`).join('，'));
+    if (!newMaterialsStr) return;
+    let newCategory = prompt('新分类（可选: ' + CATEGORIES.join('/') + '）:', category);
+    if (!CATEGORIES.includes(newCategory)) newCategory = category;
+    const newMaterials = {};
+    newMaterialsStr.split('，').forEach(pair => {
+        const [mat, qty] = pair.split('：');
+        if(mat && qty) newMaterials[mat.trim()] = parseInt(qty.trim(), 10);
+    });
+    delete recipes[name];
+    recipes[newName] = { category: newCategory, materials: newMaterials };
+    localStorage.setItem('recipes', JSON.stringify(recipes));
+    displayRecipes();
+}
+
+// 删除配方
+function deleteRecipe(name) {
+    if (confirm(`确定删除配方「${name}」吗？`)) {
+        delete recipes[name];
+        localStorage.setItem('recipes', JSON.stringify(recipes));
+        displayRecipes();
+    }
+}
+
+// 下拉联想建议功能
+const itemInput = document.getElementById('item');
+const autocompleteList = document.getElementById('autocomplete-list');
+let currentFocus = -1;
+
+itemInput.addEventListener('input', function() {
+    const value = this.value.trim();
+    autocompleteList.innerHTML = '';
+    if (!value) {
+        autocompleteList.style.display = 'none';
+        return;
+    }
+    const names = Object.keys(recipes).filter(name => name.includes(value));
+    if (names.length === 0) {
+        autocompleteList.style.display = 'none';
+        return;
+    }
+    names.forEach((name, idx) => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-item';
+        div.innerHTML = name.replace(value, `<b>${value}</b>`);
+        div.addEventListener('mousedown', function(e) {
+            itemInput.value = name;
+            autocompleteList.style.display = 'none';
+        });
+        autocompleteList.appendChild(div);
+    });
+    autocompleteList.style.display = 'block';
+    currentFocus = -1;
+});
+
+itemInput.addEventListener('keydown', function(e) {
+    const items = autocompleteList.querySelectorAll('.autocomplete-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') {
+        currentFocus++;
+        if (currentFocus >= items.length) currentFocus = 0;
+        setActive(items);
+        e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+        currentFocus--;
+        if (currentFocus < 0) currentFocus = items.length - 1;
+        setActive(items);
+        e.preventDefault();
+    } else if (e.key === 'Enter') {
+        if (currentFocus > -1) {
+            items[currentFocus].dispatchEvent(new Event('mousedown'));
+            e.preventDefault();
+        }
+    }
+});
+
+function setActive(items) {
+    items.forEach((item, idx) => {
+        item.classList.toggle('active', idx === currentFocus);
+    });
+    if (currentFocus > -1 && items[currentFocus]) {
+        items[currentFocus].scrollIntoView({block: 'nearest'});
+    }
+}
+
+document.addEventListener('click', function(e) {
+    if (!itemInput.contains(e.target) && !autocompleteList.contains(e.target)) {
+        autocompleteList.style.display = 'none';
+    }
+});
+
+window.onload = function() {
+    // 材料名联想建议功能
+    function getAllMaterialNames() {
+        const set = new Set();
+        for (const v of Object.values(recipes)) {
+            const mats = v.materials;
+            if (typeof mats === 'object' && mats !== null) {
+                Object.keys(mats).forEach(mat => set.add(String(mat).trim()));
+            }
+        }
+        return Array.from(set);
+    }
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+    const materialInput = document.getElementById('materialSuggestInput');
+    const materialList = document.getElementById('material-autocomplete-list');
+    const mainMaterialInput = document.getElementById('newRecipeMaterials');
+    let matCurrentFocus = -1;
+    if (materialInput && materialList && mainMaterialInput) {
+        materialInput.addEventListener('input', function() {
+            const value = this.value.trim();
+            materialList.innerHTML = '';
+            if (!value) {
+                materialList.style.display = 'none';
+                return;
+            }
+            const names = getAllMaterialNames();
+            // 优先前缀匹配，再模糊匹配，全部去空格
+            const prefixMatches = names.filter(name => name.trim().startsWith(value));
+            const fuzzyMatches = names.filter(name => !name.trim().startsWith(value) && name.trim().includes(value));
+            const allMatches = [...prefixMatches, ...fuzzyMatches];
+            if (allMatches.length === 0) {
+                materialList.style.display = 'none';
+                return;
+            }
+            allMatches.forEach((name, idx) => {
+                const safeValue = escapeRegExp(value);
+                const reg = new RegExp(safeValue, 'g');
+                const showName = name.replace(reg, `<b>${value}</b>`);
+                const div = document.createElement('div');
+                div.className = 'autocomplete-item';
+                div.innerHTML = showName;
+                div.addEventListener('mousedown', function(e) {
+                    // 插入到主材料输入框末尾
+                    let cur = mainMaterialInput.value.trim();
+                    if (cur && !cur.endsWith('，')) cur += '，';
+                    mainMaterialInput.value = cur + name + '：';
+                    mainMaterialInput.focus();
+                    // 光标移到末尾
+                    mainMaterialInput.setSelectionRange(mainMaterialInput.value.length, mainMaterialInput.value.length);
+                    materialInput.value = '';
+                    materialList.style.display = 'none';
+                });
+                materialList.appendChild(div);
+            });
+            materialList.style.display = 'block';
+            matCurrentFocus = -1;
+        });
+        materialInput.addEventListener('keydown', function(e) {
+            const items = materialList.querySelectorAll('.autocomplete-item');
+            if (!items.length) return;
+            if (e.key === 'ArrowDown') {
+                matCurrentFocus++;
+                if (matCurrentFocus >= items.length) matCurrentFocus = 0;
+                setMatActive(items);
+                e.preventDefault();
+            } else if (e.key === 'ArrowUp') {
+                matCurrentFocus--;
+                if (matCurrentFocus < 0) matCurrentFocus = items.length - 1;
+                setMatActive(items);
+                e.preventDefault();
+            } else if (e.key === 'Enter') {
+                if (matCurrentFocus > -1) {
+                    items[matCurrentFocus].dispatchEvent(new Event('mousedown'));
+                    e.preventDefault();
+                }
+            }
+        });
+        function setMatActive(items) {
+            items.forEach((item, idx) => {
+                item.classList.toggle('active', idx === matCurrentFocus);
+            });
+            if (matCurrentFocus > -1 && items[matCurrentFocus]) {
+                items[matCurrentFocus].scrollIntoView({block: 'nearest'});
+            }
+        }
+        document.addEventListener('click', function(e) {
+            if (!materialInput.contains(e.target) && !materialList.contains(e.target)) {
+                materialList.style.display = 'none';
+            }
+        });
+    }
+};
+
+// 导出配方
+function exportRecipes() {
+    const data = JSON.stringify(recipes, null, 2);
+    const blob = new Blob([data], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'recipes.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// 导入配方
+function importRecipes(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (typeof imported === 'object' && imported !== null) {
+                recipes = imported;
+                // 导入后自动升级数据结构
+                upgradeRecipesStructure();
+                localStorage.setItem('recipes', JSON.stringify(recipes));
+                displayRecipes();
+                alert('配方导入成功！');
+            } else {
+                alert('导入的文件格式不正确！');
+            }
+        } catch {
+            alert('导入的文件不是有效的JSON！');
+        }
+    };
+    reader.readAsText(file);
+    // 清空input，便于连续导入
+    event.target.value = '';
+}
+
+// 导入/导出配方模态框控制
+function openImportExportModal() {
+    document.getElementById('importExportModal').style.display = 'block';
+}
+function closeImportExportModal() {
+    document.getElementById('importExportModal').style.display = 'none';
+}
+
+function clearRecipes() {
+    if (confirm('确定要清空本地配方库吗？此操作不可恢复！')) {
+        localStorage.removeItem('recipes');
+        location.reload();
+    }
+}
+</script>
+</body>
+</html> 
