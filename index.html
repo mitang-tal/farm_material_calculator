@@ -168,6 +168,20 @@
             font-size: 14px;
             border-radius: 5px;
         }
+        .level-exp-info {
+            color: #4ea1ff;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        .recipe-category {
+            color: #888;
+            font-size: 13px;
+        }
+        .recipe-materials {
+            color: #666;
+            font-size: 14px;
+            margin-top: 4px;
+        }
         .modal-content h3 {
             margin-top: 0;
             color: #3178c6;
@@ -259,6 +273,18 @@
         <div class="modal-content">
             <span class="close" onclick="closeModal()">&times;</span>
             <h3>配方管理</h3>
+            <div style="margin-bottom:12px;">
+                <button class="btn-secondary" onclick="showRecipeStats()" style="margin-right:8px;">配方统计</button>
+                <button class="btn-secondary" onclick="resetFilters()" style="margin-right:8px;">重置筛选</button>
+                <button class="btn-secondary" onclick="jumpToLevel(1)" style="margin-right:4px;">Lv.1</button>
+                <button class="btn-secondary" onclick="jumpToLevel(10)" style="margin-right:4px;">Lv.10</button>
+                <button class="btn-secondary" onclick="jumpToLevel(20)" style="margin-right:4px;">Lv.20</button>
+                <button class="btn-secondary" onclick="jumpToLevel(30)" style="margin-right:4px;">Lv.30</button>
+                <button class="btn-secondary" onclick="jumpToLevel(40)" style="margin-right:8px;">Lv.40</button>
+                <button class="btn-secondary" onclick="jumpToExpRange(0, 100)" style="margin-right:4px;">Exp.0-100</button>
+                <button class="btn-secondary" onclick="jumpToExpRange(200, 300)" style="margin-right:4px;">Exp.200-300</button>
+                <button class="btn-secondary" onclick="jumpToExpRange(300, 400)" style="margin-right:4px;">Exp.300-400</button>
+            </div>
             <div class="recipe-list" id="recipeList"></div>
             <h4>添加新配方</h4>
             <input type="text" id="newRecipeName" placeholder="配方名称">
@@ -271,6 +297,10 @@
                 <option value="料理制作">料理制作</option>
                 <option value="其他">其他</option>
             </select>
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <input type="number" id="newRecipeLevel" placeholder="等级要求" min="1" style="flex:1;padding:8px 12px;border-radius:6px;border:1px solid #d0d7de;font-size:15px;">
+                <input type="number" id="newRecipeExp" placeholder="单次经验" min="0" style="flex:1;padding:8px 12px;border-radius:6px;border:1px solid #d0d7de;font-size:15px;">
+            </div>
             <div style="position:relative;margin-bottom:8px;">
                 <input type="text" id="materialSuggestInput" placeholder="输入材料名，支持联想补全" autocomplete="off" style="width:100%;padding:8px 12px;border-radius:6px;border:1px solid #d0d7de;font-size:15px;">
                 <div id="material-autocomplete-list" class="autocomplete-list" style="display:none;"></div>
@@ -287,34 +317,118 @@ let recipes = JSON.parse(localStorage.getItem('recipes')) || {
     "蛋糕": { "面粉": 2, "鸡蛋": 3, "牛奶": 1 },
     "面粉": { "小麦": 2 },
     "三明治": { "面包": 2, "鸡蛋": 1, "生菜": 1 },
-    // 基础材料：小麦、水、鸡蛋、牛奶、生菜
+    "35级羊毛": { "羊毛": 3, "染料": 1 },
+    "木色拼接双层书柜": { "木板": 4, "钉子": 8, "木色染料": 2 },
+    "木色染料": { "染料": 1, "木材": 1 },
+    // 基础材料：小麦、水、鸡蛋、牛奶、生菜、羊毛、染料、木板、钉子、木材
 };
+
+// 名称到ID的映射
+let nameToIdMap = {};
+
+// 调试函数：查看配方结构
+function debugRecipe(recipeName) {
+    const recipe = getRecipeByName(recipeName);
+    if (recipe) {
+        console.log('配方结构:', recipeName, recipe);
+        alert(`配方「${recipeName}」的结构已输出到控制台`);
+    } else {
+        alert(`未找到配方「${recipeName}」`);
+    }
+}
+
+// 调试函数：查看所有配方
+function debugAllRecipes() {
+    console.log('所有配方数据:', recipes);
+    console.log('名称到ID映射:', nameToIdMap);
+    alert('所有配方数据已输出到控制台');
+}
+
 // 兼容旧数据，升级为新结构，并覆盖localStorage
 function upgradeRecipesStructure() {
     let changed = false;
-    for (const [name, value] of Object.entries(recipes)) {
-        if (!value.materials) {
-            recipes[name] = { category: "其他", materials: value };
-            changed = true;
+    
+    // 检查是否是新结构（有name字段）
+    const isNewStructure = Object.values(recipes).some(recipe => recipe.name);
+    
+    if (isNewStructure) {
+        // 新结构：通过name字段建立映射
+        nameToIdMap = {};
+        for (const [id, recipe] of Object.entries(recipes)) {
+            if (recipe.name) {
+                nameToIdMap[recipe.name] = id;
+            }
         }
+    } else {
+        // 旧结构：升级为新结构
+        for (const [name, value] of Object.entries(recipes)) {
+            // 检查是否为旧结构（直接包含材料，没有materials字段）
+            if (!value.materials && typeof value === 'object') {
+                // 检查是否包含材料数据（不是新结构）
+                const hasMaterialData = Object.entries(value).some(([key, val]) => 
+                    typeof val === 'number' && !['exp', 'lv'].includes(key)
+                );
+                if (hasMaterialData) {
+                    recipes[name] = { 
+                        category: "其他", 
+                        exp: 0,
+                        lv: 1,
+                        materials: value,
+                        isEvent: false
+                    };
+                    changed = true;
+                }
+            }
+        }
+        if (changed) localStorage.setItem('recipes', JSON.stringify(recipes));
     }
-    if (changed) localStorage.setItem('recipes', JSON.stringify(recipes));
 }
 upgradeRecipesStructure();
 
-// 递归分解，统计基础材料
-function getBaseMaterials(item, count, result) {
-    if (!recipes[item]) {
-        result[item] = (result[item] || 0) + count;
+// 通过名称获取配方
+function getRecipeByName(name) {
+    if (nameToIdMap[name]) {
+        return recipes[nameToIdMap[name]];
+    }
+    // 兼容旧结构
+    return recipes[name];
+}
+
+// 递归分解，统计基础材料（修复版本）
+function getBaseMaterials(item, count, result, visited = new Set(), depth = 0) {
+    const indent = '  '.repeat(depth);
+    console.log(`${indent}分解物品: ${item}, 数量: ${count}, 深度: ${depth}`);
+    
+    // 防止循环依赖
+    if (visited.has(item)) {
+        console.warn(`${indent}检测到循环依赖: ${item}`);
         return;
     }
-    const mats = recipes[item].materials;
-    if (typeof mats === 'object' && mats !== null) {
-        for (const [subItem, subCount] of Object.entries(mats)) {
-            if (typeof subCount === 'number' && !isNaN(subCount)) {
-                getBaseMaterials(subItem, subCount * count, result);
+    
+    visited.add(item);
+    
+    // 获取配方
+    const recipe = getRecipeByName(item);
+    
+    // 检查是否存在配方
+    if (recipe && recipe.materials) {
+        console.log(`${indent}找到配方:`, recipe.materials);
+        
+        const { materials } = recipe;
+        if (typeof materials === 'object' && materials !== null) {
+            for (const [subItem, subCount] of Object.entries(materials)) {
+                if (typeof subCount === 'number' && !isNaN(subCount)) {
+                    const totalNeeded = subCount * count;
+                    console.log(`${indent}需要 ${subItem} × ${totalNeeded}`);
+                    // 递归分解子物品
+                    getBaseMaterials(subItem, totalNeeded, result, new Set(visited), depth + 1);
+                }
             }
         }
+    } else {
+        // 没有配方，当作基础材料
+        console.log(`${indent}作为基础材料添加: ${item} × ${count}`);
+        result[item] = (result[item] || 0) + count;
     }
 }
 
@@ -322,22 +436,56 @@ function getBaseMaterials(item, count, result) {
 function calculate() {
     const item = document.getElementById('item').value.trim();
     const count = parseInt(document.getElementById('count').value, 10);
+    
     if (!item || count < 1) {
         document.getElementById('result').innerHTML = '<span style="color:#e57373">请输入正确的配方名称和数量！</span>';
         return;
     }
-    if (!recipes[item]) {
+    
+    // 检查是否存在配方
+    const recipe = getRecipeByName(item);
+    if (!recipe) {
         document.getElementById('result').innerHTML = `<span style="color:#e57373">未找到配方「${item}」，请检查名称或在配方管理中添加！</span>`;
         return;
     }
-    const result = {};
-    getBaseMaterials(item, count, result);
-    let html = `<b>合成 ${count} 个「${item}」所需基础材料：</b><ul>`;
-    for (const [mat, qty] of Object.entries(result)) {
-        html += `<li>${mat} × ${qty}</li>`;
+    
+    try {
+        const result = {};
+        getBaseMaterials(item, count, result);
+        
+        if (Object.keys(result).length === 0) {
+            document.getElementById('result').innerHTML = '<span style="color:#e57373">计算结果为空，请检查配方数据！</span>';
+            return;
+        }
+        
+        // 等级和经验值信息
+        const { lv, exp, category } = recipe;
+        const levelInfo = lv ? `等级要求：Lv.${lv}` : '';
+        const expInfo = exp ? `单次经验：${exp}` : '';
+        const levelExpText = [levelInfo, expInfo].filter(Boolean).join(' | ');
+        const categoryText = category ? `[${category}]` : '';
+        
+        // 计算总经验
+        let totalExp = '';
+        if (exp && !isNaN(exp) && count > 1) {
+            totalExp = `<span style='color:#e57373;font-size:13px;'>合成${count}个总经验：${exp} × ${count} = ${exp * count}</span>`;
+        }
+        
+        let html = `<b>合成 ${count} 个「${item}」所需基础材料：</b>`;
+        if (levelExpText || categoryText) {
+            html += `<br><span style='color:#4ea1ff;font-size:14px;'>${categoryText} ${levelExpText}</span>`;
+        }
+        if (totalExp) html += `<br>${totalExp}`;
+        html += '<ul>';
+        for (const [mat, qty] of Object.entries(result)) {
+            html += `<li>${mat} × ${qty}</li>`;
+        }
+        html += '</ul>';
+        document.getElementById('result').innerHTML = html;
+    } catch (error) {
+        console.error('计算错误:', error);
+        document.getElementById('result').innerHTML = '<span style="color:#e57373">计算出错，请检查配方数据！</span>';
     }
-    html += '</ul>';
-    document.getElementById('result').innerHTML = html;
 }
 
 // 打开模态框
@@ -356,24 +504,120 @@ const CATEGORIES = ["原木制作", "陶艺制作", "缝纫制作", "金属制�
 
 // 当前筛选分类
 let currentCategory = "全部";
+let currentLevel = "全部";
+let currentLevelRange = "全部";
+let currentExpRange = "全部";
+let currentSort = "名称";
 
 // 配方管理区分类筛选下拉
 function renderCategoryFilter() {
     const filterDiv = document.createElement('div');
     filterDiv.style.marginBottom = '12px';
-    const select = document.createElement('select');
-    select.style.padding = '6px 12px';
-    select.style.borderRadius = '6px';
-    select.style.border = '1px solid #d0d7de';
-    select.style.fontSize = '15px';
-    select.innerHTML = `<option value="全部">全部分类</option>` +
+    filterDiv.style.display = 'flex';
+    filterDiv.style.gap = '12px';
+    filterDiv.style.flexWrap = 'wrap';
+    
+    // 分类筛选
+    const categorySelect = document.createElement('select');
+    categorySelect.style.padding = '6px 12px';
+    categorySelect.style.borderRadius = '6px';
+    categorySelect.style.border = '1px solid #d0d7de';
+    categorySelect.style.fontSize = '15px';
+    categorySelect.innerHTML = `<option value="全部">全部分类</option>` +
         CATEGORIES.map(cat => `<option value="${cat}">${cat}</option>`).join('');
-    select.value = currentCategory;
-    select.onchange = function() {
+    categorySelect.value = currentCategory;
+    categorySelect.onchange = function() {
         currentCategory = this.value;
         displayRecipes();
     };
-    filterDiv.appendChild(select);
+    
+    // 等级筛选
+    const levelSelect = document.createElement('select');
+    levelSelect.style.padding = '6px 12px';
+    levelSelect.style.borderRadius = '6px';
+    levelSelect.style.border = '1px solid #d0d7de';
+    levelSelect.style.fontSize = '15px';
+    levelSelect.innerHTML = `<option value="全部">全部等级</option>` +
+        Array.from({length: 40}, (_, i) => i + 1).map(lv => `<option value="${lv}">Lv.${lv}</option>`).join('');
+    levelSelect.value = currentLevel;
+    levelSelect.onchange = function() {
+        currentLevel = this.value;
+        displayRecipes();
+    };
+    
+    // 等级范围筛选
+    const levelRangeSelect = document.createElement('select');
+    levelRangeSelect.style.padding = '6px 12px';
+    levelRangeSelect.style.borderRadius = '6px';
+    levelRangeSelect.style.border = '1px solid #d0d7de';
+    levelRangeSelect.style.fontSize = '15px';
+    levelRangeSelect.innerHTML = `
+        <option value="全部">全部等级</option>
+        <option value="1-10">Lv.1-10</option>
+        <option value="11-20">Lv.11-20</option>
+        <option value="21-30">Lv.21-30</option>
+        <option value="31-40">Lv.31-40</option>
+        <option value="1-5">Lv.1-5</option>
+        <option value="6-15">Lv.6-15</option>
+        <option value="16-25">Lv.16-25</option>
+        <option value="26-35">Lv.26-35</option>
+        <option value="36-40">Lv.36-40</option>
+    `;
+    levelRangeSelect.value = currentLevelRange;
+    levelRangeSelect.onchange = function() {
+        currentLevelRange = this.value;
+        displayRecipes();
+    };
+    
+    // 经验值范围筛选
+    const expRangeSelect = document.createElement('select');
+    expRangeSelect.style.padding = '6px 12px';
+    expRangeSelect.style.borderRadius = '6px';
+    expRangeSelect.style.border = '1px solid #d0d7de';
+    expRangeSelect.style.fontSize = '15px';
+    expRangeSelect.innerHTML = `
+        <option value="全部">全部经验值</option>
+        <option value="0-100">0-100</option>
+        <option value="101-200">101-200</option>
+        <option value="201-300">201-300</option>
+        <option value="301-400">301-400</option>
+        <option value="0-50">0-50</option>
+        <option value="51-150">51-150</option>
+        <option value="151-250">151-250</option>
+        <option value="251-350">251-350</option>
+        <option value="351-400">351-400</option>
+    `;
+    expRangeSelect.value = currentExpRange;
+    expRangeSelect.onchange = function() {
+        currentExpRange = this.value;
+        displayRecipes();
+    };
+    
+    // 排序选择
+    const sortSelect = document.createElement('select');
+    sortSelect.style.padding = '6px 12px';
+    sortSelect.style.borderRadius = '6px';
+    sortSelect.style.border = '1px solid #d0d7de';
+    sortSelect.style.fontSize = '15px';
+    sortSelect.innerHTML = `
+        <option value="名称">按名称</option>
+        <option value="等级升序">按等级升序</option>
+        <option value="等级降序">按等级降序</option>
+        <option value="经验值升序">按经验值升序</option>
+        <option value="经验值降序">按经验值降序</option>
+        <option value="分类">按分类</option>
+    `;
+    sortSelect.value = currentSort;
+    sortSelect.onchange = function() {
+        currentSort = this.value;
+        displayRecipes();
+    };
+    
+    filterDiv.appendChild(categorySelect);
+    filterDiv.appendChild(levelSelect);
+    filterDiv.appendChild(levelRangeSelect);
+    filterDiv.appendChild(expRangeSelect);
+    filterDiv.appendChild(sortSelect);
     return filterDiv;
 }
 
@@ -382,19 +626,93 @@ function displayRecipes() {
     const recipeList = document.getElementById('recipeList');
     recipeList.innerHTML = '';
     recipeList.appendChild(renderCategoryFilter());
-    for (const [name, value] of Object.entries(recipes)) {
-        const { category, materials } = value;
-        if (currentCategory !== "全部" && category !== currentCategory) continue;
+    
+    // 获取所有配方
+    const allRecipes = [];
+    for (const [id, recipe] of Object.entries(recipes)) {
+        if (recipe.name) {
+            // 新结构
+            allRecipes.push({ id, ...recipe });
+        } else {
+            // 旧结构兼容
+            allRecipes.push({ id, name: id, ...recipe });
+        }
+    }
+    
+    // 筛选配方
+    const filteredRecipes = allRecipes.filter(recipe => {
+        const { name, category, materials, lv, exp } = recipe;
+        if (currentCategory !== "全部" && category !== currentCategory) return false;
+        if (currentLevel !== "全部" && lv !== parseInt(currentLevel, 10)) return false;
+        
+        // 等级范围筛选
+        if (currentLevelRange !== "全部") {
+            const [minLevel, maxLevel] = currentLevelRange.split('-').map(Number);
+            if (lv < minLevel || lv > maxLevel) return false;
+        }
+        
+        // 经验值范围筛选
+        if (currentExpRange !== "全部") {
+            const [minExp, maxExp] = currentExpRange.split('-').map(Number);
+            if (exp < minExp || exp > maxExp) return false;
+        }
+        
+        return true;
+    });
+    
+    // 排序配方
+    filteredRecipes.sort((a, b) => {
+        switch (currentSort) {
+            case "等级升序":
+                return (a.lv || 0) - (b.lv || 0);
+            case "等级降序":
+                return (b.lv || 0) - (a.lv || 0);
+            case "经验值升序":
+                return (a.exp || 0) - (b.exp || 0);
+            case "经验值降序":
+                return (b.exp || 0) - (a.exp || 0);
+            case "分类":
+                return (a.category || '').localeCompare(b.category || '');
+            default: // 名称
+                return a.name.localeCompare(b.name);
+        }
+    });
+    
+    // 显示筛选结果统计
+    const statsDiv = document.createElement('div');
+    statsDiv.style.marginBottom = '12px';
+    statsDiv.style.padding = '8px 12px';
+    statsDiv.style.backgroundColor = '#f6f8fa';
+    statsDiv.style.borderRadius = '6px';
+    statsDiv.style.fontSize = '14px';
+    statsDiv.style.color = '#656d76';
+    statsDiv.innerHTML = `显示 ${filteredRecipes.length} 个配方（共 ${allRecipes.length} 个）`;
+    recipeList.appendChild(statsDiv);
+    
+    for (const recipe of filteredRecipes) {
+        const { name, category, materials, lv, exp } = recipe;
+        
         let materialsHtml = '';
         if (typeof materials === 'object' && materials !== null) {
             materialsHtml = Object.entries(materials)
                 .filter(([mat, qty]) => typeof qty === 'number' && !isNaN(qty))
                 .map(([mat, qty]) => `${mat} × ${qty}`).join('，');
         }
+        
+        // 等级和经验值显示
+        const levelInfo = lv ? `Lv.${lv}` : '';
+        const expInfo = exp ? `Exp.${exp}` : '';
+        const levelExpText = [levelInfo, expInfo].filter(Boolean).join(' | ');
+        
         const div = document.createElement('div');
         div.className = 'recipe-item';
         div.innerHTML = `
-            <span><strong>${name}</strong> <span style='color:#888;font-size:13px;'>[${category}]</span>：${materialsHtml}</span>
+            <span>
+                <strong>${name}</strong> 
+                <span class="recipe-category">[${category || '其他'}]</span>
+                ${levelExpText ? `<span class="level-exp-info">(${levelExpText})</span>` : ''}
+                <br><span class="recipe-materials">${materialsHtml}</span>
+            </span>
             <span>
                 <button class="btn-primary" onclick="editRecipe('${name}')">编辑</button>
                 <button class="btn-secondary" onclick="deleteRecipe('${name}')">删除</button>
@@ -423,17 +741,33 @@ function addRecipe() {
     const name = document.getElementById('newRecipeName').value.trim();
     const materialsStr = document.getElementById('newRecipeMaterials').value.trim();
     const category = document.getElementById('newRecipeCategory').value;
+    const level = document.getElementById('newRecipeLevel').value;
+    const exp = document.getElementById('newRecipeExp').value;
     if (!name || !materialsStr) return;
     const materials = {};
     materialsStr.split('，').forEach(pair => {
         const [mat, qty] = pair.split('：');
         if(mat && qty) materials[mat.trim()] = parseInt(qty.trim(), 10);
     });
-    recipes[name] = { category, materials };
+    
+    // 生成唯一ID
+    const id = Date.now().toString();
+    recipes[id] = { 
+        name,
+        category, 
+        exp: parseInt(exp, 10),
+        lv: parseInt(level, 10),
+        materials, 
+        isEvent: false 
+    };
+    nameToIdMap[name] = id;
+    
     localStorage.setItem('recipes', JSON.stringify(recipes));
     displayRecipes();
     document.getElementById('newRecipeName').value = '';
     document.getElementById('newRecipeMaterials').value = '';
+    document.getElementById('newRecipeLevel').value = '';
+    document.getElementById('newRecipeExp').value = '';
     // 不重置分类，保持上次选择
     // 自动刷新材料名联想建议
     if (typeof materialInput !== 'undefined' && materialInput) {
@@ -443,20 +777,42 @@ function addRecipe() {
 
 // 编辑配方
 function editRecipe(name) {
-    const { category, materials } = recipes[name];
+    const recipe = getRecipeByName(name);
+    if (!recipe) return;
+    
+    const { category, materials, lv, exp } = recipe;
     const newName = prompt('新配方名称:', name);
     if (!newName) return;
     const newMaterialsStr = prompt('新配方材料（格式：材料1：数量1，材料2：数量2）:', Object.entries(materials).map(([mat, qty]) => `${mat}：${qty}`).join('，'));
     if (!newMaterialsStr) return;
     let newCategory = prompt('新分类（可选: ' + CATEGORIES.join('/') + '）:', category);
     if (!CATEGORIES.includes(newCategory)) newCategory = category;
+    const newLevel = prompt('新等级要求:', lv || 1);
+    const newExp = prompt('新单次经验:', exp || 0);
+    
     const newMaterials = {};
     newMaterialsStr.split('，').forEach(pair => {
         const [mat, qty] = pair.split('：');
         if(mat && qty) newMaterials[mat.trim()] = parseInt(qty.trim(), 10);
     });
-    delete recipes[name];
-    recipes[newName] = { category: newCategory, materials: newMaterials };
+    
+    // 删除旧配方
+    if (nameToIdMap[name]) {
+        delete recipes[nameToIdMap[name]];
+        delete nameToIdMap[name];
+    } else {
+        delete recipes[name];
+    }
+    
+    // 添加新配方
+    recipes[newName] = { 
+        category: newCategory, 
+        materials: newMaterials,
+        lv: parseInt(newLevel, 10) || 1,
+        exp: parseInt(newExp, 10) || 0
+    };
+    nameToIdMap[newName] = newName;
+    
     localStorage.setItem('recipes', JSON.stringify(recipes));
     displayRecipes();
 }
@@ -464,7 +820,12 @@ function editRecipe(name) {
 // 删除配方
 function deleteRecipe(name) {
     if (confirm(`确定删除配方「${name}」吗？`)) {
-        delete recipes[name];
+        if (nameToIdMap[name]) {
+            delete recipes[nameToIdMap[name]];
+            delete nameToIdMap[name];
+        } else {
+            delete recipes[name];
+        }
         localStorage.setItem('recipes', JSON.stringify(recipes));
         displayRecipes();
     }
@@ -482,12 +843,25 @@ itemInput.addEventListener('input', function() {
         autocompleteList.style.display = 'none';
         return;
     }
-    const names = Object.keys(recipes).filter(name => name.includes(value));
-    if (names.length === 0) {
+    
+    // 获取所有配方名称
+    const names = [];
+    for (const [id, recipe] of Object.entries(recipes)) {
+        if (recipe.name) {
+            names.push(recipe.name);
+        } else {
+            // 兼容旧结构
+            names.push(id);
+        }
+    }
+    
+    const filteredNames = names.filter(name => name.includes(value));
+    if (filteredNames.length === 0) {
         autocompleteList.style.display = 'none';
         return;
     }
-    names.forEach((name, idx) => {
+    
+    filteredNames.forEach((name, idx) => {
         const div = document.createElement('div');
         div.className = 'autocomplete-item';
         div.innerHTML = name.replace(value, `<b>${value}</b>`);
@@ -541,8 +915,8 @@ window.onload = function() {
     // 材料名联想建议功能
     function getAllMaterialNames() {
         const set = new Set();
-        for (const v of Object.values(recipes)) {
-            const mats = v.materials;
+        for (const [id, recipe] of Object.entries(recipes)) {
+            const mats = recipe.materials;
             if (typeof mats === 'object' && mats !== null) {
                 Object.keys(mats).forEach(mat => set.add(String(mat).trim()));
             }
@@ -686,6 +1060,123 @@ function clearRecipes() {
         localStorage.removeItem('recipes');
         location.reload();
     }
+}
+
+// 测试函数：重置为默认配方
+function resetToDefault() {
+    localStorage.removeItem('recipes');
+    location.reload();
+}
+
+// 测试函数：简单计算
+function testCalculate() {
+    const testRecipes = {
+        "面包": { category: "料理制作", materials: { "小麦": 3, "水": 1 } },
+        "小麦": { category: "其他", materials: {} }  // 基础材料
+    };
+    
+    const result = {};
+    getBaseMaterials("面包", 1, result);
+    console.log('测试计算结果:', result);
+    alert('测试完成，请查看控制台');
+}
+
+// 调试函数：检查特定配方
+function checkRecipe(name) {
+    console.log('检查配方:', name);
+    console.log('是否存在:', recipes.hasOwnProperty(name));
+    console.log('配方内容:', recipes[name]);
+    console.log('所有配方名称:', Object.keys(recipes));
+}
+
+// 调试函数：检查材料配方
+function checkMaterialRecipes() {
+    const materials = ['陶瓷碗', '构树木板', '檀木材料', '玻璃', '种子', '布料'];
+    materials.forEach(mat => {
+        const recipe = getRecipeByName(mat);
+        console.log(`材料「${mat}」的配方:`, recipe);
+    });
+}
+
+// 显示配方统计信息
+function showRecipeStats() {
+    const allRecipes = [];
+    for (const [id, recipe] of Object.entries(recipes)) {
+        if (recipe.name) {
+            allRecipes.push({ id, ...recipe });
+        } else {
+            allRecipes.push({ id, name: id, ...recipe });
+        }
+    }
+    
+    const stats = {
+        total: allRecipes.length,
+        byCategory: {},
+        byLevel: {},
+        maxLevel: 0,
+        maxExp: 0
+    };
+    
+    allRecipes.forEach(recipe => {
+        const { category, lv, exp } = recipe;
+        
+        // 分类统计
+        const cat = category || '其他';
+        stats.byCategory[cat] = (stats.byCategory[cat] || 0) + 1;
+        
+        // 等级统计
+        if (lv) {
+            stats.byLevel[lv] = (stats.byLevel[lv] || 0) + 1;
+            stats.maxLevel = Math.max(stats.maxLevel, lv);
+        }
+        
+        // 最大经验值
+        if (exp) {
+            stats.maxExp = Math.max(stats.maxExp, exp);
+        }
+    });
+    
+    let html = `<h4>配方统计</h4>`;
+    html += `<p><strong>总配方数：</strong>${stats.total}</p>`;
+    html += `<p><strong>最高等级：</strong>Lv.${stats.maxLevel}</p>`;
+    html += `<p><strong>最高经验值：</strong>${stats.maxExp}</p>`;
+    
+    html += `<p><strong>按分类统计：</strong></p><ul>`;
+    Object.entries(stats.byCategory).forEach(([cat, count]) => {
+        html += `<li>${cat}: ${count}个</li>`;
+    });
+    html += `</ul>`;
+    
+    alert('配方统计信息已输出到控制台');
+    console.log('配方统计:', stats);
+}
+
+// 快速跳转到特定等级
+function jumpToLevel(level) {
+    currentLevel = level.toString();
+    currentLevelRange = "全部";
+    currentExpRange = "全部";
+    currentSort = "等级升序";
+    displayRecipes();
+}
+
+// 快速跳转到特定经验值范围
+function jumpToExpRange(minExp, maxExp) {
+    currentExpRange = `${minExp}-${maxExp}`;
+    currentLevel = "全部";
+    currentLevelRange = "全部";
+    currentSort = "经验值升序";
+    displayRecipes();
+}
+
+// 重置所有筛选条件
+function resetFilters() {
+    currentCategory = "全部";
+    currentLevel = "全部";
+    currentLevelRange = "全部";
+    currentExpRange = "全部";
+    currentSort = "名称";
+    displayRecipes();
 }
 </script>
 </body>
